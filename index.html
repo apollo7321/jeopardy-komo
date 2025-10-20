@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="de">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Jeopardy Board</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                text-align: center;
+                margin: 20px;
+                background-size: cover;
+                background-position: center;
+                background-attachment: fixed;
+            }
+            table {
+                border-collapse: collapse;
+                margin: 20px auto;
+                background-color: rgba(255, 255, 255, 0.9);
+            }
+            th,
+            td {
+                border: 2px solid black;
+                padding: 20px;
+                font-size: 18px;
+                cursor: pointer;
+                min-width: 100px;
+            }
+            th {
+                background-color: #003366;
+                color: white;
+            }
+            .delete-row {
+                display: none;
+                background-color: #f0f0f0;
+            }
+            .delete-row button {
+                background: red;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 5px 10px;
+                cursor: pointer;
+                margin: 5px;
+            }
+            .strikethrough {
+                text-decoration: line-through;
+                color: #888;
+            }
+            .overlay {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.8);
+                z-index: 100;
+                justify-content: center;
+                align-items: center;
+            }
+            .overlay-content {
+                background-color: white;
+                padding: 20px;
+                border-radius: 5px;
+                max-width: 80%;
+            }
+            iframe {
+                width: 560px;
+                height: 315px;
+            }
+            button {
+                margin: 5px;
+                padding: 8px 16px;
+                cursor: pointer;
+            }
+            .edit-input {
+                width: 80%;
+                padding: 5px;
+                margin: 5px 0;
+            }
+            .mode-buttons {
+                margin-bottom: 20px;
+            }
+            .active-mode {
+                background-color: #003366;
+                color: white;
+            }
+            #addColumnBtn,
+            #setBackgroundBtn,
+            #saveBtn,
+            #loadGameBtn,
+            #newGameBtn {
+                display: none;
+            }
+            select {
+                padding: 8px;
+                margin: 5px;
+                width: 100%;
+            }
+
+            .no-video {
+                background-color: #ffcccc; /* Hellrot */
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Jeopardy Board</h1>
+        <div class="mode-buttons">
+            <button id="editModeBtn" onclick="setEditMode()">Edit mode</button>
+            <button
+                id="playModeBtn"
+                class="active-mode"
+                onclick="setPlayMode()"
+            >
+                Game Mode
+            </button>
+            <button id="addColumnBtn" onclick="addColumn()">Add column</button>
+            <button id="setBackgroundBtn" onclick="openBackgroundOverlay()">
+                Set background image
+            </button>
+            <button id="saveBtn" onclick="openSaveOverlay()">Save game</button>
+            <button id="loadGameBtn" onclick="openLoadOverlay()">
+                Load game
+            </button>
+            <button id="newGameBtn" onclick="newGame()">New game</button>
+        </div>
+        <table id="jeopardyBoard">
+            <thead>
+                <tr id="deleteRow" class="delete-row"></tr>
+                <tr id="headerRow"></tr>
+            </thead>
+            <tbody id="boardBody"></tbody>
+        </table>
+
+        <!-- Overlays -->
+        <div id="videoOverlay" class="overlay">
+            <div class="overlay-content">
+                <iframe
+                    id="videoFrame"
+                    src=""
+                    frameborder="0"
+                    allowfullscreen
+                ></iframe>
+                <br />
+                <button onclick="closeVideoOverlay()">Close</button>
+            </div>
+        </div>
+        <div id="editVideoOverlay" class="overlay">
+            <div class="overlay-content">
+                <h3>Change YouTube link:</h3>
+                <input
+                    type="text"
+                    id="videoUrlInput"
+                    class="edit-input"
+                    placeholder="YouTube video link"
+                />
+                <br />
+                <button onclick="saveVideoUrl()">Save</button>
+                <button onclick="closeEditVideoOverlay()">Cancel</button>
+            </div>
+        </div>
+        <div id="editCategoryOverlay" class="overlay">
+            <div class="overlay-content">
+                <h3>Change category name:</h3>
+                <input type="text" id="categoryNameInput" class="edit-input" />
+                <br />
+                <button onclick="saveCategoryName()">Save</button>
+                <button onclick="closeEditCategoryOverlay()">Cancel</button>
+            </div>
+        </div>
+        <div id="backgroundOverlay" class="overlay">
+            <div class="overlay-content">
+                <h3>Background image url:</h3>
+                <input
+                    type="text"
+                    id="backgroundUrlInput"
+                    class="edit-input"
+                    placeholder="https://example.com/background.jpg"
+                />
+                <br />
+                <button onclick="setBackgroundImage()">Save</button>
+                <button onclick="closeBackgroundOverlay()">Cancel</button>
+            </div>
+        </div>
+        <div id="saveOverlay" class="overlay">
+            <div class="overlay-content">
+                <h3>Save as:</h3>
+                <input
+                    type="text"
+                    id="saveGameNameInput"
+                    class="edit-input"
+                    placeholder="Name of the save file"
+                />
+                <br />
+                <button onclick="saveGame()">Save</button>
+                <button onclick="closeSaveOverlay()">Cancel</button>
+            </div>
+        </div>
+        <div id="loadOverlay" class="overlay">
+            <div class="overlay-content">
+                <h3>Load game:</h3>
+                <select id="loadGameSelect" size="5"></select>
+                <br />
+                <button onclick="loadGame()">Load</button>
+                <button onclick="closeLoadOverlay()">Cancel</button>
+            </div>
+        </div>
+
+        <script>
+            let isEditMode = false;
+            let currentEditCell = null;
+            let currentEditCategory = null;
+            let currentGameData = {
+                categories: ["Category 1"],
+                videos: [["", "", "", "", ""]],
+                backgroundImage: "",
+            };
+            let savedGames =
+                JSON.parse(localStorage.getItem("jeopardySavedGames")) || {};
+
+            document.addEventListener("DOMContentLoaded", function () {
+                const lastGameKey = localStorage.getItem("jeopardyLastGame");
+                if (lastGameKey && savedGames[lastGameKey]) {
+                    currentGameData = savedGames[lastGameKey];
+                    if (currentGameData.backgroundImage) {
+                        document.body.style.backgroundImage = `url('${currentGameData.backgroundImage}')`;
+                    }
+                }
+                renderBoard();
+                updateLoadGameSelect();
+            });
+
+            function setEditMode() {
+                isEditMode = true;
+                document
+                    .getElementById("editModeBtn")
+                    .classList.add("active-mode");
+                document
+                    .getElementById("playModeBtn")
+                    .classList.remove("active-mode");
+                document.getElementById("addColumnBtn").style.display =
+                    "inline-block";
+                document.getElementById("setBackgroundBtn").style.display =
+                    "inline-block";
+                document.getElementById("saveBtn").style.display =
+                    "inline-block";
+                document.getElementById("loadGameBtn").style.display =
+                    "inline-block";
+                document.getElementById("newGameBtn").style.display =
+                    "inline-block";
+                document.getElementById("deleteRow").style.display =
+                    "table-row";
+            }
+
+            function setPlayMode() {
+                isEditMode = false;
+                document
+                    .getElementById("editModeBtn")
+                    .classList.remove("active-mode");
+                document
+                    .getElementById("playModeBtn")
+                    .classList.add("active-mode");
+                document.getElementById("addColumnBtn").style.display = "none";
+                document.getElementById("setBackgroundBtn").style.display =
+                    "none";
+                document.getElementById("saveBtn").style.display = "none";
+                document.getElementById("loadGameBtn").style.display = "none";
+                document.getElementById("newGameBtn").style.display = "none";
+                document.getElementById("deleteRow").style.display = "none";
+            }
+
+            function addColumn() {
+                const newCategory = `Category ${currentGameData.categories.length + 1}`;
+                currentGameData.categories.push(newCategory);
+                currentGameData.videos.push(["", "", "", "", ""]);
+                renderBoard();
+            }
+
+            function deleteColumn(index) {
+                if (currentGameData.categories.length > 1) {
+                    currentGameData.categories.splice(index, 1);
+                    currentGameData.videos.splice(index, 1);
+                    renderBoard();
+                } else {
+                    alert("At least one column needs to exist!");
+                }
+            }
+
+            function handleCellClick(cell, rowIndex) {
+                const colIndex = Array.from(
+                    cell.parentElement.children,
+                ).indexOf(cell);
+                if (isEditMode) {
+                    currentEditCell = { cell, rowIndex, colIndex };
+                    document.getElementById("videoUrlInput").value =
+                        currentGameData.videos[colIndex][rowIndex] || "";
+                    document.getElementById("editVideoOverlay").style.display =
+                        "flex";
+                } else {
+                    const videoUrl = currentGameData.videos[colIndex][rowIndex];
+                    if (videoUrl) {
+                        openVideoOverlay(videoUrl);
+                    } else {
+                        alert("No video saved");
+                    }
+                }
+            }
+
+            function editCategory(header, index) {
+                if (isEditMode) {
+                    currentEditCategory = { header, index };
+                    document.getElementById("categoryNameInput").value =
+                        currentGameData.categories[index];
+                    document.getElementById(
+                        "editCategoryOverlay",
+                    ).style.display = "flex";
+                }
+            }
+
+            function saveVideoUrl() {
+                if (currentEditCell) {
+                    let videoUrl = document
+                        .getElementById("videoUrlInput")
+                        .value.trim();
+                    if (videoUrl) {
+                        videoUrl = convertToEmbedUrl(videoUrl);
+                        currentGameData.videos[currentEditCell.colIndex][
+                            currentEditCell.rowIndex
+                        ] = videoUrl;
+                    }
+                    closeEditVideoOverlay();
+                    renderBoard();
+                }
+            }
+
+            function convertToEmbedUrl(url) {
+                if (url.includes("youtube.com/watch?v=")) {
+                    const videoId = url.split("v=")[1].split("&")[0];
+                    return `https://www.youtube.com/embed/${videoId}`;
+                } else if (url.includes("youtu.be/")) {
+                    const videoId = url.split("youtu.be/")[1].split("?")[0];
+                    return `https://www.youtube.com/embed/${videoId}`;
+                } else if (url.includes("youtube.com/embed/")) {
+                    return url;
+                } else {
+                    alert("Invalid link. Please use YouTube links only.");
+                    return "";
+                }
+            }
+
+            function saveCategoryName() {
+                if (currentEditCategory) {
+                    const newName = document
+                        .getElementById("categoryNameInput")
+                        .value.trim();
+                    if (newName) {
+                        currentGameData.categories[currentEditCategory.index] =
+                            newName;
+                        renderBoard();
+                    }
+                    closeEditCategoryOverlay();
+                }
+            }
+
+            function openBackgroundOverlay() {
+                document.getElementById("backgroundUrlInput").value =
+                    currentGameData.backgroundImage;
+                document.getElementById("backgroundOverlay").style.display =
+                    "flex";
+            }
+
+            function setBackgroundImage() {
+                const url = document
+                    .getElementById("backgroundUrlInput")
+                    .value.trim();
+                currentGameData.backgroundImage = url;
+                document.body.style.backgroundImage = url
+                    ? `url('${url}')`
+                    : "";
+                closeBackgroundOverlay();
+            }
+
+            function openSaveOverlay() {
+                document.getElementById("saveGameNameInput").value = "";
+                document.getElementById("saveOverlay").style.display = "flex";
+            }
+
+            function saveGame() {
+                const gameName = document
+                    .getElementById("saveGameNameInput")
+                    .value.trim();
+                if (gameName) {
+                    savedGames[gameName] = JSON.parse(
+                        JSON.stringify(currentGameData),
+                    );
+                    localStorage.setItem(
+                        "jeopardySavedGames",
+                        JSON.stringify(savedGames),
+                    );
+                    localStorage.setItem("jeopardyLastGame", gameName);
+                    updateLoadGameSelect();
+                    closeSaveOverlay();
+                    alert(`Game "${gameName}" has been saved!`);
+                } else {
+                    alert("Please enter a name for the game.");
+                }
+            }
+
+            function openLoadOverlay() {
+                updateLoadGameSelect();
+                document.getElementById("loadOverlay").style.display = "flex";
+            }
+
+            function updateLoadGameSelect() {
+                const select = document.getElementById("loadGameSelect");
+                select.innerHTML = "";
+                for (const gameName in savedGames) {
+                    const option = document.createElement("option");
+                    option.value = gameName;
+                    option.textContent = gameName;
+                    select.appendChild(option);
+                }
+            }
+
+            function loadGame() {
+                const select = document.getElementById("loadGameSelect");
+                const gameName = select.value;
+                if (gameName) {
+                    currentGameData = savedGames[gameName];
+                    if (currentGameData.backgroundImage) {
+                        document.body.style.backgroundImage = `url('${currentGameData.backgroundImage}')`;
+                    } else {
+                        document.body.style.backgroundImage = "";
+                    }
+                    renderBoard();
+                    localStorage.setItem("jeopardyLastGame", gameName);
+                    closeLoadOverlay();
+                }
+            }
+
+            function newGame() {
+                if (
+                    confirm(
+                        "Do you really want to start a new game? All non-saved data will be lost.",
+                    )
+                ) {
+                    currentGameData = {
+                        categories: ["Category 1"],
+                        videos: [["", "", "", "", ""]],
+                        backgroundImage: "",
+                    };
+                    document.body.style.backgroundImage = "";
+                    renderBoard();
+                    localStorage.removeItem("jeopardyLastGame");
+                }
+            }
+
+            function renderBoard() {
+                const deleteRow = document.getElementById("deleteRow");
+                const headerRow = document.getElementById("headerRow");
+                const boardBody = document.getElementById("boardBody");
+
+                deleteRow.innerHTML = "";
+                headerRow.innerHTML = "";
+                boardBody.innerHTML = "";
+
+                // Löschen-Buttons-Zeile
+                currentGameData.categories.forEach((_, colIndex) => {
+                    const td = document.createElement("td");
+                    const deleteBtn = document.createElement("button");
+                    deleteBtn.textContent = `Delete column ${colIndex + 1}`;
+                    deleteBtn.onclick = () => deleteColumn(colIndex);
+                    td.appendChild(deleteBtn);
+                    deleteRow.appendChild(td);
+                });
+
+                // Kategorien-Zeile
+                currentGameData.categories.forEach((category, colIndex) => {
+                    const th = document.createElement("th");
+                    th.onclick = () => editCategory(th, colIndex);
+                    th.textContent = category;
+                    headerRow.appendChild(th);
+                });
+
+                // Daten-Zeilen
+                for (let rowIndex = 0; rowIndex < 5; rowIndex++) {
+                    const tr = document.createElement("tr");
+                    currentGameData.videos.forEach((col, colIndex) => {
+                        const td = document.createElement("td");
+                        td.textContent = (rowIndex + 1) * 100;
+                        td.onclick = () => handleCellClick(td, rowIndex);
+
+                        // Markiere Zellen ohne Video rot (nur im Bearbeitungsmodus)
+                        if (
+                            isEditMode &&
+                            !currentGameData.videos[colIndex][rowIndex]
+                        ) {
+                            td.classList.add("no-video");
+                        }
+
+                        tr.appendChild(td);
+                    });
+                    boardBody.appendChild(tr);
+                }
+            }
+
+            function closeEditVideoOverlay() {
+                document.getElementById("editVideoOverlay").style.display =
+                    "none";
+                currentEditCell = null;
+            }
+
+            function closeEditCategoryOverlay() {
+                document.getElementById("editCategoryOverlay").style.display =
+                    "none";
+                currentEditCategory = null;
+            }
+
+            function closeBackgroundOverlay() {
+                document.getElementById("backgroundOverlay").style.display =
+                    "none";
+            }
+
+            function closeSaveOverlay() {
+                document.getElementById("saveOverlay").style.display = "none";
+            }
+
+            function closeLoadOverlay() {
+                document.getElementById("loadOverlay").style.display = "none";
+            }
+
+            function openVideoOverlay(videoUrl) {
+                document.getElementById("videoFrame").src = videoUrl;
+                document.getElementById("videoOverlay").style.display = "flex";
+            }
+
+            function closeVideoOverlay() {
+                document.getElementById("videoOverlay").style.display = "none";
+                document.getElementById("videoFrame").src = "";
+            }
+        </script>
+    </body>
+</html>
