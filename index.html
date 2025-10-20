@@ -9,6 +9,13 @@
                 font-family: Arial, sans-serif;
                 text-align: center;
                 margin: 20px;
+                background: linear-gradient(
+                    135deg,
+                    #1a0b2e 0%,
+                    #3a1c5d 50%,
+                    #5f3d8c 100%
+                );
+                color: white;
                 background-size: cover;
                 background-position: center;
                 background-attachment: fixed;
@@ -16,26 +23,36 @@
             table {
                 border-collapse: collapse;
                 margin: 20px auto;
-                background-color: rgba(255, 255, 255, 0.9);
+                background-color: rgba(255, 255, 255, 0.1);
+                box-shadow: 0 0 20px rgba(138, 43, 226, 0.3);
             }
             th,
             td {
-                border: 2px solid black;
+                border: 2px solid rgba(138, 43, 226, 0.5);
                 padding: 20px;
                 font-size: 18px;
                 cursor: pointer;
                 min-width: 100px;
+                background-color: rgba(102, 51, 153, 0.3);
+                color: white;
+                transition: background-color 0.3s;
             }
             th {
-                background-color: #003366;
+                background: linear-gradient(to bottom, #8a2be2, #6a5acd);
                 color: white;
+                font-weight: bold;
+                text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+            }
+            th:hover,
+            td:hover {
+                background-color: rgba(173, 216, 230, 0.4);
             }
             .delete-row {
                 display: none;
-                background-color: #f0f0f0;
+                background-color: rgba(102, 51, 153, 0.5);
             }
             .delete-row button {
-                background: red;
+                background: #8b0000;
                 color: white;
                 border: none;
                 border-radius: 5px;
@@ -45,7 +62,7 @@
             }
             .strikethrough {
                 text-decoration: line-through;
-                color: #888;
+                color: #aaa;
             }
             .overlay {
                 display: none;
@@ -54,37 +71,52 @@
                 left: 0;
                 width: 100%;
                 height: 100%;
-                background-color: rgba(0, 0, 0, 0.8);
+                background-color: rgba(26, 11, 46, 0.9);
                 z-index: 100;
                 justify-content: center;
                 align-items: center;
             }
             .overlay-content {
-                background-color: white;
+                background: linear-gradient(to bottom, #6a5acd, #483d8b);
                 padding: 20px;
                 border-radius: 5px;
                 max-width: 80%;
+                color: white;
+                border: 1px solid rgba(138, 43, 226, 0.5);
             }
             iframe {
                 width: 560px;
                 height: 315px;
+                border: 2px solid rgba(138, 43, 226, 0.5);
             }
             button {
                 margin: 5px;
                 padding: 8px 16px;
                 cursor: pointer;
+                background-color: #6a5acd;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                transition: background-color 0.3s;
+            }
+            button:hover {
+                background-color: #8a2be2;
             }
             .edit-input {
                 width: 80%;
-                padding: 5px;
+                padding: 8px;
                 margin: 5px 0;
+                background-color: rgba(255, 255, 255, 0.2);
+                color: white;
+                border: 1px solid rgba(138, 43, 226, 0.5);
             }
             .mode-buttons {
                 margin-bottom: 20px;
             }
             .active-mode {
-                background-color: #003366;
+                background: linear-gradient(to bottom, #8a2be2, #483d8b);
                 color: white;
+                border: 1px solid rgba(138, 43, 226, 0.7);
             }
             #addColumnBtn,
             #setBackgroundBtn,
@@ -92,15 +124,18 @@
             #loadGameBtn,
             #newGameBtn {
                 display: none;
+                background-color: #6a5acd;
             }
             select {
                 padding: 8px;
                 margin: 5px;
                 width: 100%;
+                background-color: rgba(102, 51, 153, 0.5);
+                color: white;
+                border: 1px solid rgba(138, 43, 226, 0.5);
             }
-
             .no-video {
-                background-color: #ffcccc; /* Hellrot */
+                background-color: rgba(255, 105, 180, 0.3);
             }
         </style>
     </head>
