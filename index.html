@@ -137,6 +137,19 @@
             .no-video {
                 background-color: rgba(255, 105, 180, 0.3);
             }
+            /* Small autosave indicator */
+            #autosaveIndicator {
+                position: fixed;
+                bottom: 10px;
+                right: 10px;
+                background: rgba(0, 0, 0, 0.5);
+                color: #fff;
+                padding: 6px 10px;
+                border-radius: 4px;
+                font-size: 12px;
+                border: 1px solid rgba(138, 43, 226, 0.4);
+                display: none;
+            }
         </style>
     </head>
     <body>
@@ -183,12 +196,16 @@
         </div>
         <div id="editVideoOverlay" class="overlay">
             <div class="overlay-content">
-                <h3>Change YouTube link:</h3>
+                <h3>Change video link:</h3>
+                <p>
+                    YouTube link or absolute local path (e.g.
+                    /home/user/video.mp4 or C:\path\video.mp4)
+                </p>
                 <input
                     type="text"
                     id="videoUrlInput"
                     class="edit-input"
-                    placeholder="YouTube video link"
+                    placeholder="YouTube link or absolute local path (e.g. /home/user/video.mp4 or C:\path\video.mp4)"
                 />
                 <br />
                 <button onclick="saveVideoUrl()">Save</button>
@@ -242,6 +259,8 @@
             </div>
         </div>
 
+        <div id="autosaveIndicator">Saved</div>
+
         <script>
             let isEditMode = false;
             let currentEditCell = null;
@@ -254,12 +273,48 @@
             let savedGames =
                 JSON.parse(localStorage.getItem("jeopardySavedGames")) || {};
 
+            // Persist current game (autosave) to localStorage
+            function persistCurrentGame(showIndicator = false) {
+                try {
+                    localStorage.setItem(
+                        "jeopardyCurrentGame",
+                        JSON.stringify(currentGameData),
+                    );
+                    if (showIndicator) {
+                        const el = document.getElementById("autosaveIndicator");
+                        if (el) {
+                            el.style.display = "block";
+                            clearTimeout(el._hideTimeout);
+                            el._hideTimeout = setTimeout(() => {
+                                el.style.display = "none";
+                            }, 800);
+                        }
+                    }
+                } catch (e) {
+                    console.warn("Could not autosave current game:", e);
+                }
+            }
+
             document.addEventListener("DOMContentLoaded", function () {
-                const lastGameKey = localStorage.getItem("jeopardyLastGame");
-                if (lastGameKey && savedGames[lastGameKey]) {
-                    currentGameData = savedGames[lastGameKey];
-                    if (currentGameData.backgroundImage) {
-                        document.body.style.backgroundImage = `url('${currentGameData.backgroundImage}')`;
+                // If an autosave exists, load it. Otherwise fall back to the last named save.
+                const autosave = localStorage.getItem("jeopardyCurrentGame");
+                if (autosave) {
+                    try {
+                        currentGameData = JSON.parse(autosave);
+                        if (currentGameData.backgroundImage) {
+                            document.body.style.backgroundImage = `url('${currentGameData.backgroundImage}')`;
+                        }
+                    } catch (e) {
+                        console.error("Failed to parse autosave:", e);
+                    }
+                } else {
+                    const lastGameKey =
+                        localStorage.getItem("jeopardyLastGame");
+                    if (lastGameKey && savedGames[lastGameKey]) {
+                        currentGameData = savedGames[lastGameKey];
+                        if (currentGameData.backgroundImage) {
+                            document.body.style.backgroundImage = `url('${currentGameData.backgroundImage}')`;
+                        }
                     }
                 }
                 renderBoard();
@@ -306,10 +361,13 @@
             }
 
             function addColumn() {
-                const newCategory = `Category ${currentGameData.categories.length + 1}`;
+                const newCategory = `Category ${
+                    currentGameData.categories.length + 1
+                }`;
                 currentGameData.categories.push(newCategory);
                 currentGameData.videos.push(["", "", "", "", ""]);
                 renderBoard();
+                persistCurrentGame(true);
             }
 
             function deleteColumn(index) {
@@ -317,6 +375,7 @@
                     currentGameData.categories.splice(index, 1);
                     currentGameData.videos.splice(index, 1);
                     renderBoard();
+                    persistCurrentGame(true);
                 } else {
                     alert("At least one column needs to exist!");
                 }
@@ -363,13 +422,27 @@
                         currentGameData.videos[currentEditCell.colIndex][
                             currentEditCell.rowIndex
                         ] = videoUrl;
+                    } else {
+                        // cleared
+                        currentGameData.videos[currentEditCell.colIndex][
+                            currentEditCell.rowIndex
+                        ] = "";
                     }
                     closeEditVideoOverlay();
                     renderBoard();
+                    persistCurrentGame(true);
                 }
             }
 
             function convertToEmbedUrl(url) {
+                url = url.trim();
+                if (!url) return "";
+                // Accept file:// URLs as-is
+                if (url.startsWith("file://")) {
+                    return url;
+                }
+
+                // YouTube patterns
                 if (url.includes("youtube.com/watch?v=")) {
                     const videoId = url.split("v=")[1].split("&")[0];
                     return `https://www.youtube.com/embed/${videoId}`;
@@ -378,10 +451,25 @@
                     return `https://www.youtube.com/embed/${videoId}`;
                 } else if (url.includes("youtube.com/embed/")) {
                     return url;
-                } else {
-                    alert("Invalid link. Please use YouTube links only.");
-                    return "";
                 }
+
+                // Windows absolute path like "C:\path\to\file.mp4" or "C:/path/to/file.mp4"
+                if (/^[a-zA-Z]:[\\/]/.test(url)) {
+                    let path = url.replace(/\\/g, "/");
+                    const fileUrl = "file:///" + path;
+                    return encodeURI(fileUrl);
+                }
+
+                // Unix absolute path starting with /
+                if (url.startsWith("/")) {
+                    const fileUrl = "file://" + url;
+                    return encodeURI(fileUrl);
+                }
+
+                alert(
+                    "Invalid link. Please use YouTube links or absolute local paths (e.g. /home/user/video.mp4 or C:\\path\\to\\video.mp4).",
+                );
+                return "";
             }
 
             function saveCategoryName() {
@@ -393,6 +481,7 @@
                         currentGameData.categories[currentEditCategory.index] =
                             newName;
                         renderBoard();
+                        persistCurrentGame(true);
                     }
                     closeEditCategoryOverlay();
                 }
@@ -414,6 +503,8 @@
                     ? `url('${url}')`
                     : "";
                 closeBackgroundOverlay();
+                renderBoard();
+                persistCurrentGame(true);
             }
 
             function openSaveOverlay() {
@@ -434,6 +525,8 @@
                         JSON.stringify(savedGames),
                     );
                     localStorage.setItem("jeopardyLastGame", gameName);
+                    // update autosave as well
+                    persistCurrentGame();
                     updateLoadGameSelect();
                     closeSaveOverlay();
                     alert(`Game "${gameName}" has been saved!`);
@@ -470,6 +563,8 @@
                     }
                     renderBoard();
                     localStorage.setItem("jeopardyLastGame", gameName);
+                    // make loaded named save the current autosave
+                    persistCurrentGame(true);
                     closeLoadOverlay();
                 }
             }
@@ -488,6 +583,7 @@
                     document.body.style.backgroundImage = "";
                     renderBoard();
                     localStorage.removeItem("jeopardyLastGame");
+                    persistCurrentGame(true);
                 }
             }
 
@@ -500,7 +596,7 @@
                 headerRow.innerHTML = "";
                 boardBody.innerHTML = "";
 
-                // Löschen-Buttons-Zeile
+                // delete buttons row
                 currentGameData.categories.forEach((_, colIndex) => {
                     const td = document.createElement("td");
                     const deleteBtn = document.createElement("button");
@@ -510,7 +606,7 @@
                     deleteRow.appendChild(td);
                 });
 
-                // Kategorien-Zeile
+                // category row
                 currentGameData.categories.forEach((category, colIndex) => {
                     const th = document.createElement("th");
                     th.onclick = () => editCategory(th, colIndex);
@@ -518,7 +614,7 @@
                     headerRow.appendChild(th);
                 });
 
-                // Daten-Zeilen
+                // data rows
                 for (let rowIndex = 0; rowIndex < 5; rowIndex++) {
                     const tr = document.createElement("tr");
                     currentGameData.videos.forEach((col, colIndex) => {
@@ -526,7 +622,7 @@
                         td.textContent = (rowIndex + 1) * 100;
                         td.onclick = () => handleCellClick(td, rowIndex);
 
-                        // Markiere Zellen ohne Video rot (nur im Bearbeitungsmodus)
+                        // mark cells without video in edit mode
                         if (
                             isEditMode &&
                             !currentGameData.videos[colIndex][rowIndex]
@@ -538,6 +634,9 @@
                     });
                     boardBody.appendChild(tr);
                 }
+
+                // final autosave as safety (without visible indicator)
+                persistCurrentGame(false);
             }
 
             function closeEditVideoOverlay() {
