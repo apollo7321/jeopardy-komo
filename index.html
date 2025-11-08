@@ -288,6 +288,18 @@
                     placeholder="YouTube link or absolute local path (e.g. /home/user/video.mp4 or C:\path\video.mp4)"
                 />
                 <br />
+                <label
+                    style="
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 8px;
+                        margin-top: 8px;
+                    "
+                >
+                    <input type="checkbox" id="closedCheckbox" />
+                    <span style="font-size: 14px">Mark as used / closed</span>
+                </label>
+                <br />
                 <button onclick="saveVideoUrl()">Save</button>
                 <button onclick="closeEditVideoOverlay()">Cancel</button>
             </div>
@@ -361,17 +373,60 @@
             let isEditMode = false;
             let currentEditCell = null;
             let currentEditCategory = null;
+            // Track which cell was opened in play mode so we can mark it closed when the overlay is closed
+            let currentPlayedCell = null;
             let currentGameData = {
                 categories: ["Category 1"],
                 videos: [["", "", "", "", ""]],
+                // parallel structure to `videos` that stores whether the cell has been closed (used)
+                closed: [[false, false, false, false, false]],
                 backgroundImage: "",
             };
             let savedGames =
                 JSON.parse(localStorage.getItem("jeopardySavedGames")) || {};
 
+            // Ensure data shapes are consistent (categories <-> videos <-> closed)
+            function normalizeGameData() {
+                // Ensure arrays exist
+                currentGameData.categories = currentGameData.categories || [
+                    "Category 1",
+                ];
+                currentGameData.videos = currentGameData.videos || [];
+                currentGameData.closed = currentGameData.closed || [];
+
+                // Ensure each category has a videos column and a closed column of length 5
+                for (let c = 0; c < currentGameData.categories.length; c++) {
+                    if (!Array.isArray(currentGameData.videos[c])) {
+                        currentGameData.videos[c] = ["", "", "", "", ""];
+                    } else {
+                        // pad or trim to 5 rows
+                        while (currentGameData.videos[c].length < 5)
+                            currentGameData.videos[c].push("");
+                        if (currentGameData.videos[c].length > 5)
+                            currentGameData.videos[c].length = 5;
+                    }
+                    if (!Array.isArray(currentGameData.closed[c])) {
+                        currentGameData.closed[c] = [
+                            false,
+                            false,
+                            false,
+                            false,
+                            false,
+                        ];
+                    } else {
+                        while (currentGameData.closed[c].length < 5)
+                            currentGameData.closed[c].push(false);
+                        if (currentGameData.closed[c].length > 5)
+                            currentGameData.closed[c].length = 5;
+                    }
+                }
+            }
+
             // Persist current game (autosave) to localStorage
             function persistCurrentGame(showIndicator = false) {
                 try {
+                    // normalize before saving to avoid corrupt shapes
+                    normalizeGameData();
                     localStorage.setItem(
                         "jeopardyCurrentGame",
                         JSON.stringify(currentGameData),
@@ -500,6 +555,8 @@
                         }
                     }
                 }
+                // Normalize data shape (ensure `closed` exists and matches columns/rows)
+                normalizeGameData();
                 renderBoard();
                 updateLoadGameSelect();
             });
@@ -549,6 +606,14 @@
                 }`;
                 currentGameData.categories.push(newCategory);
                 currentGameData.videos.push(["", "", "", "", ""]);
+                // also add a closed column for the new category
+                currentGameData.closed.push([
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                ]);
                 renderBoard();
                 persistCurrentGame(true);
             }
@@ -557,6 +622,10 @@
                 if (currentGameData.categories.length > 1) {
                     currentGameData.categories.splice(index, 1);
                     currentGameData.videos.splice(index, 1);
+                    // also remove the closed column if present
+                    if (Array.isArray(currentGameData.closed)) {
+                        currentGameData.closed.splice(index, 1);
+                    }
                     renderBoard();
                     persistCurrentGame(true);
                 } else {
@@ -576,14 +645,24 @@
                     currentEditCell = { cell, rowIndex, colIndex };
                     document.getElementById("videoUrlInput").value =
                         currentGameData.videos[colIndex][rowIndex] || "";
+                    // set closed checkbox to the current closed state for this cell
+                    const closedState = !!(
+                        currentGameData.closed &&
+                        currentGameData.closed[colIndex] &&
+                        currentGameData.closed[colIndex][rowIndex]
+                    );
+                    const cb = document.getElementById("closedCheckbox");
+                    if (cb) cb.checked = closedState;
                     document.getElementById("editVideoOverlay").style.display =
                         "flex";
                 } else {
+                    // remember which cell was opened in play mode so we can mark it closed afterwards
+                    currentPlayedCell = { colIndex, rowIndex };
                     const videoUrl = currentGameData.videos[colIndex][rowIndex];
                     if (videoUrl) {
                         openVideoOverlay(videoUrl);
                     } else {
-                        showAlert("No video saved", "warning", true);
+                        showAlert("No video saved", "warning", 2000);
                     }
                 }
             }
@@ -615,6 +694,29 @@
                             currentEditCell.rowIndex
                         ] = "";
                     }
+
+                    // read closed checkbox and apply
+                    const cb = document.getElementById("closedCheckbox");
+                    if (!Array.isArray(currentGameData.closed))
+                        currentGameData.closed = [];
+                    if (
+                        !Array.isArray(
+                            currentGameData.closed[currentEditCell.colIndex],
+                        )
+                    ) {
+                        currentGameData.closed[currentEditCell.colIndex] = [
+                            false,
+                            false,
+                            false,
+                            false,
+                            false,
+                        ];
+                    }
+                    const isClosed = cb ? !!cb.checked : false;
+                    currentGameData.closed[currentEditCell.colIndex][
+                        currentEditCell.rowIndex
+                    ] = isClosed;
+
                     closeEditVideoOverlay();
                     renderBoard();
                     persistCurrentGame(true);
@@ -758,6 +860,8 @@
                     } else {
                         document.body.style.backgroundImage = "";
                     }
+                    // normalize to ensure closed arrays exist
+                    normalizeGameData();
                     renderBoard();
                     localStorage.setItem("jeopardyLastGame", gameName);
                     // make loaded named save the current autosave
@@ -826,6 +930,15 @@
                             td.classList.add("no-video");
                         }
 
+                        // visually mark closed (used) cells with strikethrough but keep them clickable
+                        if (
+                            currentGameData.closed &&
+                            currentGameData.closed[colIndex] &&
+                            currentGameData.closed[colIndex][rowIndex]
+                        ) {
+                            td.classList.add("strikethrough");
+                        }
+
                         tr.appendChild(td);
                     });
                     boardBody.appendChild(tr);
@@ -868,6 +981,28 @@
             function closeVideoOverlay() {
                 document.getElementById("videoOverlay").style.display = "none";
                 document.getElementById("videoFrame").src = "";
+
+                // If the overlay was opened from a play-mode click, mark that cell as closed (used)
+                if (currentPlayedCell) {
+                    const { colIndex, rowIndex } = currentPlayedCell;
+                    if (!Array.isArray(currentGameData.closed))
+                        currentGameData.closed = [];
+                    if (!Array.isArray(currentGameData.closed[colIndex])) {
+                        currentGameData.closed[colIndex] = [
+                            false,
+                            false,
+                            false,
+                            false,
+                            false,
+                        ];
+                    }
+                    currentGameData.closed[colIndex][rowIndex] = true;
+                    // update UI and persist
+                    renderBoard();
+                    persistCurrentGame(true);
+                    // reset played marker
+                    currentPlayedCell = null;
+                }
             }
         </script>
     </body>
