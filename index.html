@@ -149,6 +149,65 @@
                 font-size: 12px;
                 border: 1px solid rgba(138, 43, 226, 0.4);
                 display: none;
+                z-index: 105;
+            }
+
+            /* Alert styles (Bootstrap-like, lightweight) */
+            #alertContainer {
+                position: fixed;
+                top: 10px;
+                right: 10px;
+                z-index: 110;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                max-width: 320px;
+            }
+            .alert {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 10px 12px;
+                border-radius: 6px;
+                color: #fff;
+                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+                font-size: 14px;
+                opacity: 1;
+                transition:
+                    opacity 0.25s ease,
+                    transform 0.25s ease;
+            }
+            .alert .message {
+                flex: 1 1 auto;
+                text-align: left;
+                margin-right: 8px;
+            }
+            .alert .close-btn {
+                background: transparent;
+                border: none;
+                color: inherit;
+                font-weight: bold;
+                cursor: pointer;
+                padding: 0 6px;
+                font-size: 16px;
+                line-height: 1;
+            }
+            .alert-success {
+                background: linear-gradient(90deg, #28a745, #2ecc71);
+            }
+            .alert-danger {
+                background: linear-gradient(90deg, #dc3545, #ff6b6b);
+            }
+            .alert-warning {
+                background: linear-gradient(90deg, #ffc107, #ffcf6b);
+                color: #222;
+            }
+            .alert-info {
+                background: linear-gradient(90deg, #17a2b8, #5bc0de);
+            }
+            .alert.fade-out {
+                opacity: 0;
+                transform: translateY(-6px);
             }
         </style>
     </head>
@@ -260,6 +319,22 @@
         </div>
 
         <div id="autosaveIndicator">Saved</div>
+        <div id="alertContainer" aria-live="polite" aria-atomic="true"></div>
+        <div id="confirmOverlay" class="overlay" aria-hidden="true">
+            <div
+                class="overlay-content"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="confirmTitle"
+            >
+                <h3 id="confirmTitle">Confirm</h3>
+                <p id="confirmMessage">Are you sure?</p>
+                <div style="margin-top: 12px; text-align: right">
+                    <button id="confirmCancelBtn">Cancel</button>
+                    <button id="confirmOkBtn">Yes</button>
+                </div>
+            </div>
+        </div>
 
         <script>
             let isEditMode = false;
@@ -295,6 +370,88 @@
                 }
             }
 
+            // In-page alert helper (closable, optional auto-hide)
+            function showAlert(
+                message,
+                type = "info",
+                autoHide = true,
+                timeout = 3500,
+            ) {
+                const container = document.getElementById("alertContainer");
+                if (!container) {
+                    // fallback to window alert if container missing
+                    window.alert(message);
+                    return;
+                }
+
+                const alertEl = document.createElement("div");
+                alertEl.className = `alert alert-${type}`;
+                alertEl.setAttribute("role", "alert");
+
+                const msg = document.createElement("div");
+                msg.className = "message";
+                msg.textContent = message;
+
+                const closeBtn = document.createElement("button");
+                closeBtn.className = "close-btn";
+                closeBtn.setAttribute("aria-label", "Close");
+                closeBtn.innerHTML = "✕";
+                closeBtn.onclick = () => removeAlert(alertEl);
+
+                alertEl.appendChild(msg);
+                alertEl.appendChild(closeBtn);
+
+                // insert at top
+                container.insertBefore(alertEl, container.firstChild);
+
+                // Auto-hide if requested
+                if (autoHide) {
+                    alertEl._timeout = setTimeout(() => {
+                        removeAlert(alertEl);
+                    }, timeout);
+                }
+            }
+
+            function removeAlert(el) {
+                if (!el) return;
+                clearTimeout(el._timeout);
+                el.classList.add("fade-out");
+                setTimeout(() => {
+                    if (el && el.parentElement)
+                        el.parentElement.removeChild(el);
+                }, 260);
+            }
+
+            // Confirm overlay helpers
+            function openConfirmOverlay(message, onConfirm) {
+                const overlay = document.getElementById("confirmOverlay");
+                const msgEl = document.getElementById("confirmMessage");
+                const okBtn = document.getElementById("confirmOkBtn");
+                const cancelBtn = document.getElementById("confirmCancelBtn");
+                if (!overlay || !msgEl || !okBtn || !cancelBtn) {
+                    // fallback to native confirm if markup missing
+                    if (window.confirm(message)) onConfirm && onConfirm();
+                    return;
+                }
+                msgEl.textContent = message;
+                overlay.style.display = "flex";
+                overlay.setAttribute("aria-hidden", "false");
+
+                // remove previous handlers to avoid duplicates
+                okBtn.onclick = null;
+                cancelBtn.onclick = null;
+
+                okBtn.onclick = () => {
+                    overlay.style.display = "none";
+                    overlay.setAttribute("aria-hidden", "true");
+                    onConfirm && onConfirm();
+                };
+                cancelBtn.onclick = () => {
+                    overlay.style.display = "none";
+                    overlay.setAttribute("aria-hidden", "true");
+                };
+            }
+
             document.addEventListener("DOMContentLoaded", function () {
                 // If an autosave exists, load it. Otherwise fall back to the last named save.
                 const autosave = localStorage.getItem("jeopardyCurrentGame");
@@ -306,6 +463,11 @@
                         }
                     } catch (e) {
                         console.error("Failed to parse autosave:", e);
+                        showAlert(
+                            "Failed to load autosave (corrupt).",
+                            "danger",
+                            true,
+                        );
                     }
                 } else {
                     const lastGameKey =
@@ -377,7 +539,11 @@
                     renderBoard();
                     persistCurrentGame(true);
                 } else {
-                    alert("At least one column needs to exist!");
+                    showAlert(
+                        "At least one column needs to exist!",
+                        "warning",
+                        true,
+                    );
                 }
             }
 
@@ -396,7 +562,7 @@
                     if (videoUrl) {
                         openVideoOverlay(videoUrl);
                     } else {
-                        alert("No video saved");
+                        showAlert("No video saved", "warning", true);
                     }
                 }
             }
@@ -466,8 +632,10 @@
                     return encodeURI(fileUrl);
                 }
 
-                alert(
+                showAlert(
                     "Invalid link. Please use YouTube links or absolute local paths (e.g. /home/user/video.mp4 or C:\\path\\to\\video.mp4).",
+                    "danger",
+                    true,
                 );
                 return "";
             }
@@ -529,9 +697,17 @@
                     persistCurrentGame();
                     updateLoadGameSelect();
                     closeSaveOverlay();
-                    alert(`Game "${gameName}" has been saved!`);
+                    showAlert(
+                        `Game "${gameName}" has been saved!`,
+                        "success",
+                        true,
+                    );
                 } else {
-                    alert("Please enter a name for the game.");
+                    showAlert(
+                        "Please enter a name for the game.",
+                        "warning",
+                        true,
+                    );
                 }
             }
 
@@ -570,21 +746,20 @@
             }
 
             function newGame() {
-                if (
-                    confirm(
-                        "Do you really want to start a new game? All non-saved data will be lost.",
-                    )
-                ) {
-                    currentGameData = {
-                        categories: ["Category 1"],
-                        videos: [["", "", "", "", ""]],
-                        backgroundImage: "",
-                    };
-                    document.body.style.backgroundImage = "";
-                    renderBoard();
-                    localStorage.removeItem("jeopardyLastGame");
-                    persistCurrentGame(true);
-                }
+                openConfirmOverlay(
+                    "Do you really want to start a new game? All non-saved data will be lost.",
+                    function () {
+                        currentGameData = {
+                            categories: ["Category 1"],
+                            videos: [["", "", "", "", ""]],
+                            backgroundImage: "",
+                        };
+                        document.body.style.backgroundImage = "";
+                        renderBoard();
+                        localStorage.removeItem("jeopardyLastGame");
+                        persistCurrentGame(true);
+                    },
+                );
             }
 
             function renderBoard() {
