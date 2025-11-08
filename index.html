@@ -354,7 +354,14 @@
         </style>
     </head>
     <body>
-        <h1 class="board-title">Jeopardy Board</h1>
+        <h1
+            class="board-title"
+            id="boardTitle"
+            tabindex="0"
+            onclick="titleClicked()"
+        >
+            Jeopardy Board
+        </h1>
 
         <!-- Auto-hiding action menu with handle -->
         <div id="actionMenu" class="action-menu" aria-hidden="false">
@@ -471,6 +478,16 @@
                 <button onclick="closeEditCategoryOverlay()">Cancel</button>
             </div>
         </div>
+
+        <div id="editTitleOverlay" class="overlay">
+            <div class="overlay-content">
+                <h3>Change board title:</h3>
+                <input type="text" id="boardTitleInput" class="edit-input" />
+                <br />
+                <button onclick="saveTitle()">Save</button>
+                <button onclick="closeTitleOverlay()">Cancel</button>
+            </div>
+        </div>
         <div id="backgroundOverlay" class="overlay">
             <div class="overlay-content">
                 <h3>Background image url:</h3>
@@ -538,6 +555,8 @@
                 videos: [["", "", "", "", ""]],
                 // parallel structure to `videos` that stores whether the cell has been closed (used)
                 closed: [[false, false, false, false, false]],
+                // title of the board (editable in edit mode)
+                title: "Jeopardy Board",
                 backgroundImage: "",
             };
             let savedGames =
@@ -551,6 +570,9 @@
                 ];
                 currentGameData.videos = currentGameData.videos || [];
                 currentGameData.closed = currentGameData.closed || [];
+                // ensure a title exists
+                currentGameData.title =
+                    currentGameData.title || "Jeopardy Board";
 
                 // Ensure each category has a videos column and a closed column of length 5
                 for (let c = 0; c < currentGameData.categories.length; c++) {
@@ -992,6 +1014,36 @@
                 }
             }
 
+            // Title edit helpers
+            function titleClicked() {
+                // Only open title editor in edit mode
+                if (!isEditMode) return;
+                const input = document.getElementById("boardTitleInput");
+                if (input)
+                    input.value = currentGameData.title || "Jeopardy Board";
+                const overlay = document.getElementById("editTitleOverlay");
+                if (overlay) overlay.style.display = "flex";
+            }
+
+            function saveTitle() {
+                const input = document.getElementById("boardTitleInput");
+                if (!input) return;
+                const newTitle = input.value.trim();
+                currentGameData.title = newTitle || "Jeopardy Board";
+                // update visible title immediately
+                const titleEl = document.getElementById("boardTitle");
+                if (titleEl) titleEl.textContent = currentGameData.title;
+                // persist & re-render
+                renderBoard();
+                persistCurrentGame(true);
+                closeTitleOverlay();
+            }
+
+            function closeTitleOverlay() {
+                const overlay = document.getElementById("editTitleOverlay");
+                if (overlay) overlay.style.display = "none";
+            }
+
             function openBackgroundOverlay() {
                 document.getElementById("backgroundUrlInput").value =
                     currentGameData.backgroundImage;
@@ -1105,6 +1157,11 @@
                 const deleteRow = document.getElementById("deleteRow");
                 const headerRow = document.getElementById("headerRow");
                 const boardBody = document.getElementById("boardBody");
+                // Update page title from currentGameData
+                const titleEl = document.getElementById("boardTitle");
+                if (titleEl)
+                    titleEl.textContent =
+                        currentGameData.title || "Jeopardy Board";
 
                 deleteRow.innerHTML = "";
                 headerRow.innerHTML = "";
