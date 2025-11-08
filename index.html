@@ -160,8 +160,7 @@
             #saveBtn,
             #loadGameBtn,
             #newGameBtn {
-                display: none;
-                background-color: #6a5acd;
+                /* display handled by JS (setEditMode / setPlayMode) */
             }
             select {
                 padding: 8px;
@@ -267,29 +266,151 @@
                 font-weight: 400;
                 font-style: normal;
             }
+
+            /* Action menu (auto-hiding) */
+            .action-menu {
+                position: fixed;
+                top: 20px;
+                left: 20px;
+                z-index: 120;
+                display: flex;
+                align-items: stretch;
+                overflow: visible;
+                /* initial collapsed state is handled by .collapsed */
+                border-radius: 8px;
+            }
+            .action-menu .handle {
+                width: 44px;
+                height: 44px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: linear-gradient(
+                    180deg,
+                    rgba(0, 0, 0, 0.25),
+                    rgba(0, 0, 0, 0.15)
+                );
+                border-radius: 8px;
+                color: white;
+                font-size: 20px;
+                cursor: pointer;
+                user-select: none;
+                border: 1px solid rgba(138, 43, 226, 0.12);
+                margin-right: 8px;
+            }
+            .action-menu .menu-panel {
+                width: 0;
+                max-width: 320px;
+                overflow: hidden;
+                background: linear-gradient(180deg, #3a1c5d, #5f3d8c);
+                border-radius: 8px;
+                transition:
+                    width 260ms ease,
+                    opacity 200ms ease;
+                opacity: 0;
+                display: flex;
+                flex-direction: column;
+                align-items: stretch;
+                padding: 8px;
+                box-sizing: border-box;
+                border: 1px solid rgba(138, 43, 226, 0.12);
+                box-shadow: none;
+            }
+            .action-menu.expanded .menu-panel {
+                width: 220px;
+                opacity: 1;
+                box-shadow: none;
+                border: 1px solid rgba(138, 43, 226, 0.35);
+            }
+            .action-menu .menu-panel .btn-row {
+                display: flex;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 6px;
+                margin-bottom: 8px;
+            }
+            .action-menu .menu-panel button {
+                width: 100%;
+                text-align: left;
+                padding-left: 12px;
+                font-family: "Montserrat", sans-serif;
+                font-size: 14px;
+            }
+
+            /* Make sure the table isn't overlapped on small screens */
+            @media (max-width: 640px) {
+                .action-menu {
+                    top: 10px;
+                    left: 10px;
+                }
+                .action-menu.expanded .menu-panel {
+                    width: 180px;
+                }
+                .board-title {
+                    font-size: 2.5em;
+                    margin-top: 10px;
+                }
+            }
         </style>
     </head>
     <body>
         <h1 class="board-title">Jeopardy Board</h1>
-        <div class="mode-buttons">
-            <button id="editModeBtn" onclick="setEditMode()">Edit mode</button>
-            <button
-                id="playModeBtn"
-                class="active-mode"
-                onclick="setPlayMode()"
+
+        <!-- Auto-hiding action menu with handle -->
+        <div id="actionMenu" class="action-menu" aria-hidden="false">
+            <div
+                id="menuHandle"
+                class="handle"
+                title="Open actions"
+                aria-controls="menuPanel"
+                tabindex="0"
+                role="button"
+                aria-expanded="false"
             >
-                Game Mode
-            </button>
-            <button id="addColumnBtn" onclick="addColumn()">Add column</button>
-            <button id="setBackgroundBtn" onclick="openBackgroundOverlay()">
-                Set background image
-            </button>
-            <button id="saveBtn" onclick="openSaveOverlay()">Save game</button>
-            <button id="loadGameBtn" onclick="openLoadOverlay()">
-                Load game
-            </button>
-            <button id="newGameBtn" onclick="newGame()">New game</button>
+                ☰
+            </div>
+            <div
+                id="menuPanel"
+                class="menu-panel"
+                role="menu"
+                aria-label="Game actions"
+            >
+                <div class="btn-row">
+                    <button id="editModeBtn" onclick="setEditMode()">
+                        Edit mode
+                    </button>
+                    <button
+                        id="playModeBtn"
+                        class="active-mode"
+                        onclick="setPlayMode()"
+                    >
+                        Game Mode
+                    </button>
+                    <button id="addColumnBtn" onclick="addColumn()">
+                        Add column
+                    </button>
+                    <button
+                        id="setBackgroundBtn"
+                        onclick="openBackgroundOverlay()"
+                    >
+                        Set background image
+                    </button>
+                    <button id="saveBtn" onclick="openSaveOverlay()">
+                        Save game
+                    </button>
+                    <button id="loadGameBtn" onclick="openLoadOverlay()">
+                        Load game
+                    </button>
+                    <button id="newGameBtn" onclick="newGame()">
+                        New game
+                    </button>
+                </div>
+                <div style="font-size: 12px; opacity: 0.9; text-align: right">
+                    Actions
+                </div>
+            </div>
         </div>
+
         <table id="jeopardyBoard">
             <thead>
                 <tr id="deleteRow" class="delete-row"></tr>
@@ -596,6 +717,62 @@
                 normalizeGameData();
                 renderBoard();
                 updateLoadGameSelect();
+                // Ensure UI starts in Game Mode so Edit-only controls are hidden on initial load
+                setPlayMode();
+
+                // Initialize action menu behavior (auto-hide with hover handle)
+                (function initActionMenu() {
+                    const menu = document.getElementById("actionMenu");
+                    const handle = document.getElementById("menuHandle");
+                    const panel = document.getElementById("menuPanel");
+                    let hideTimeout = null;
+
+                    function expand() {
+                        menu.classList.add("expanded");
+                        menu.classList.remove("collapsed");
+                        handle.setAttribute("aria-expanded", "true");
+                    }
+                    function collapse() {
+                        menu.classList.remove("expanded");
+                        menu.classList.add("collapsed");
+                        handle.setAttribute("aria-expanded", "false");
+                    }
+
+                    // start collapsed shortly after load for minimal distraction
+                    collapse();
+
+                    // hover behavior: cancel hide while hovering
+                    handle.addEventListener("mouseenter", () => {
+                        clearTimeout(hideTimeout);
+                        expand();
+                    });
+                    handle.addEventListener("mouseleave", () => {
+                        clearTimeout(hideTimeout);
+                        hideTimeout = setTimeout(collapse, 700);
+                    });
+                    // click/tap expands for a short time (helpful on touch)
+                    handle.addEventListener("click", () => {
+                        clearTimeout(hideTimeout);
+                        expand();
+                        hideTimeout = setTimeout(collapse, 4000);
+                    });
+
+                    // panel hover should keep it open
+                    panel.addEventListener("mouseenter", () => {
+                        clearTimeout(hideTimeout);
+                        expand();
+                    });
+                    panel.addEventListener("mouseleave", () => {
+                        clearTimeout(hideTimeout);
+                        hideTimeout = setTimeout(collapse, 700);
+                    });
+
+                    // Accessibility: allow focus to open menu
+                    handle.addEventListener("focus", () => expand());
+                    handle.addEventListener("blur", () => {
+                        hideTimeout = setTimeout(collapse, 800);
+                    });
+                })();
             });
 
             function setEditMode() {
