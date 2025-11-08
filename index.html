@@ -4,6 +4,12 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Jeopardy Board</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Montserrat:ital,wght@0,100..900;1,100..900&family=Open+Sans:ital,wght@0,300..800;1,300..800&family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&display=swap"
+            rel="stylesheet"
+        />
         <style>
             body {
                 font-family: Arial, sans-serif;
@@ -119,9 +125,19 @@
                 border: none;
                 border-radius: 5px;
                 transition: background-color 0.3s;
+                font-family: "Anton", sans-serif;
+                font-weight: 400;
+                font-style: normal;
             }
             button:hover {
                 background-color: #8a2be2;
+            }
+            .delete-button {
+                font-family: "Open Sans", sans-serif;
+                font-optical-sizing: auto;
+                font-weight: 400;
+                font-style: normal;
+                font-variation-settings: "wdth" 100;
             }
             .edit-input {
                 width: 80%;
@@ -230,10 +246,31 @@
                 opacity: 0;
                 transform: translateY(-6px);
             }
+            .board-title {
+                font-family: "Bebas Neue", sans-serif;
+                font-weight: 400;
+                font-style: normal;
+                font-size: 4em;
+            }
+            .category-header {
+                text-align: center;
+                font-weight: bold;
+                font-family: "Montserrat", sans-serif;
+                font-optical-sizing: auto;
+                font-weight: 400;
+                font-style: normal;
+            }
+            .score-cell {
+                text-align: center;
+                font-family: "Roboto Condensed", sans-serif;
+                font-optical-sizing: auto;
+                font-weight: 400;
+                font-style: normal;
+            }
         </style>
     </head>
     <body>
-        <h1>Jeopardy Board</h1>
+        <h1 class="board-title">Jeopardy Board</h1>
         <div class="mode-buttons">
             <button id="editModeBtn" onclick="setEditMode()">Edit mode</button>
             <button
@@ -902,6 +939,7 @@
                     const deleteBtn = document.createElement("button");
                     deleteBtn.textContent = `Delete column ${colIndex + 1}`;
                     deleteBtn.onclick = () => deleteColumn(colIndex);
+                    deleteBtn.className = "delete-btn";
                     td.appendChild(deleteBtn);
                     deleteRow.appendChild(td);
                 });
@@ -911,6 +949,7 @@
                     const th = document.createElement("th");
                     th.onclick = () => editCategory(th, colIndex);
                     th.textContent = category;
+                    th.className = "category-header";
                     headerRow.appendChild(th);
                 });
 
@@ -921,6 +960,7 @@
                         const td = document.createElement("td");
                         td.textContent = (rowIndex + 1) * 100;
                         td.onclick = () => handleCellClick(td, rowIndex);
+                        td.className = "score-cell";
 
                         // mark cells without video in edit mode
                         if (
